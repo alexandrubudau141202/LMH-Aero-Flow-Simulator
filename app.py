@@ -28,14 +28,17 @@ _CHART_BASE = dict(
     font=dict(family="Share Tech Mono, monospace", size=10, color="#4e6a80"),
 )
 
+_AXIS_STYLE = dict(
+    tickfont=dict(size=8),
+    gridcolor="#1a2e3e",
+    zerolinecolor="#274460",
+)
+
 _SCENE_BASE = dict(
     bgcolor="#06090d",
-    xaxis=dict(title="Yaw (°)",        titlefont=dict(size=9), tickfont=dict(size=8),
-               gridcolor="#1a2e3e", zerolinecolor="#274460"),
-    yaxis=dict(title="Rear RH (mm)",   titlefont=dict(size=9), tickfont=dict(size=8),
-               gridcolor="#1a2e3e", zerolinecolor="#274460"),
-    zaxis=dict(                         titlefont=dict(size=9), tickfont=dict(size=8),
-               gridcolor="#1a2e3e", zerolinecolor="#274460"),
+    xaxis=dict(title=dict(text="Yaw (°)",       font=dict(size=9)), **_AXIS_STYLE),
+    yaxis=dict(title=dict(text="Rear RH (mm)",  font=dict(size=9)), **_AXIS_STYLE),
+    zaxis=dict(title=dict(text="",              font=dict(size=9)), **_AXIS_STYLE),
     camera=dict(eye=dict(x=1.55, y=-1.55, z=1.1), up=dict(x=0, y=0, z=1)),
     aspectratio=dict(x=1, y=1, z=0.65),
 )
@@ -58,11 +61,10 @@ def _surface_fig(yaw_arr, rh_arr, grid, cur_yaw, cur_rh, cur_z,
         textfont=dict(size=9, color="#ffffff"),
         textposition="top center",
     ))
-    fig.update_layout(
-        **_CHART_BASE,
-        scene=dict(**_SCENE_BASE,
-                   zaxis=dict(**_SCENE_BASE["zaxis"], title=z_label)),
-    )
+    scene = {k: v for k, v in _SCENE_BASE.items() if k != "zaxis"}
+    zaxis_base = {k: v for k, v in _SCENE_BASE["zaxis"].items() if k != "title"}
+    scene["zaxis"] = dict(**zaxis_base, title=dict(text=z_label, font=dict(size=9)))
+    fig.update_layout(**_CHART_BASE, scene=scene)
     return fig
 
 
@@ -140,8 +142,10 @@ def build_layout():
 
     main = html.Div([
         html.Div([
-            html.Img(id="car-img", className="car-image",
-                     src="", style={"background": "#06090d"}),
+            dcc.Graph(id="car-graph",
+                      config={"displayModeBar": False},
+                      style={"height": "100%", "width": "100%"},
+                      figure={}),
             html.Div("RdBu  ·  BLUE = SUCTION  ·  RED = STAGNATION",
                      className="car-overlay-label"),
         ], className="car-view-container"),
@@ -232,7 +236,7 @@ def update_ranges(car_class):
 
 
 @app.callback(
-    [Output("car-img",    "src"),
+    [Output("car-graph",  "figure"),
      Output("chart-df",   "figure"),
      Output("chart-drag", "figure"),
      Output("ro-df",      "children"),   Output("ro-df-sub",   "children"),
@@ -268,13 +272,13 @@ def update_all(car_class, front_rh, rear_rh, yaw, speed):
                             yaw, rear_rh, drag,
                             "Drag (N)", "Reds", "#ff4400")
 
-    car_src = render_car(car_class, front_rh, rear_rh, yaw, speed,
+    car_fig = render_car(car_class, front_rh, rear_rh, yaw, speed,
                          gh, bal / 100, df, drag)
 
     cd_eff = spec["CD_base"] + spec["k_induced"] * (spec["CL_base"] * gh) ** 2
 
     return (
-        car_src,
+        car_fig,
         df_fig,
         drag_fig,
         f"{df/1000:.2f} kN",
